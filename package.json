@@ -1,13 +1,10 @@
 {
   "private": true,
-  "name": "my-extension",
-  "description": "Adds a sidebar panel to the browser with a simple Vue page.",
+  "name": "cocos-forum-dark-theme",
+  "description": "为 Cocos 论坛 (forum.cocos.org) 一键切换暗色主题。",
   "version": "1.0.0",
   "license": "MIT",
   "type": "module",
-  "dependencies": {
-    "vue": "^3.4.27"
-  },
   "devDependencies": {
     "@types/chrome": "^0.0.287",
     "typescript": "7.0.2",

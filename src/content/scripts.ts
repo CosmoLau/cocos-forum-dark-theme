@@ -1,8 +1,25 @@
-import {createApp} from 'vue'
-import ContentApp from './ContentApp.vue'
-import './styles.css'
+const STORAGE_KEY = 'darkMode'
+const DARK_CLASS = 'cocos-dark'
 
-console.log('[From the page context] Hello from content_scripts!')
+// forum.cocos.org 是旧版 Discourse，样式表里全是编译后的固定色值，
+// 没有 CSS 变量可覆盖，所以用整页反色实现暗色。
+// filter 按规范放在根元素上不会影响 position: fixed 的定位，弹层不受影响。
+const DARK_THEME_CSS = `
+html.${DARK_CLASS} {
+  background-color: #fff !important;
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+
+/* 图片、视频等媒体做二次反色，还原真实颜色 */
+html.${DARK_CLASS} :is(img, video, canvas, iframe, embed, object) {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+
+/* 全屏纯黑遮罩会被反成刺眼的白色，同样二次反色还原 */
+html.${DARK_CLASS} :is(.mfp-bg, .emoji-picker-modal.fadeIn) {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+`
 
 /**
  * Extension.js content_script entrypoint. The framework calls this on
@@ -10,42 +27,35 @@ console.log('[From the page context] Hello from content_scripts!')
  * Do not invoke it yourself.
  */
 export default function initial() {
-  const rootDiv = document.createElement('div')
-  rootDiv.setAttribute('data-extension-root', 'true')
-  // Isolate the host from page styles (e.g. example.com ships div{opacity:.8},
-  // which would otherwise fade the whole widget): the shadow DOM only protects
-  // descendants; the host element itself still takes page CSS.
-  rootDiv.style.cssText = 'all: initial !important'
-  document.body.appendChild(rootDiv)
-
-  // Injecting content_scripts inside a shadow dom
-  // prevents conflicts with the host page's styles.
-  // This way, styles from the extension won't leak into the host page.
-  const shadowRoot = rootDiv.attachShadow({mode: 'open'})
-
+  // 暗色样式常驻注入，规则都限定在 html.cocos-dark 下，
+  // 切换主题只需给 <html> 增删 class，无需反复注入/移除样式。
   const styleElement = document.createElement('style')
-  shadowRoot.appendChild(styleElement)
+  styleElement.textContent = DARK_THEME_CSS
+  document.documentElement.appendChild(styleElement)
 
-  fetchCSS().then((response) => (styleElement.textContent = response))
+  const apply = (dark: boolean) => {
+    document.documentElement.classList.toggle(DARK_CLASS, dark)
+  }
 
-  // Create container for Vue app
-  const contentDiv = document.createElement('div')
-  contentDiv.className = 'content_script'
-  shadowRoot.appendChild(contentDiv)
+  // 打开页面时按存储的状态决定明暗。
+  chrome.storage.local.get(STORAGE_KEY, (result) => {
+    apply(Boolean(result[STORAGE_KEY]))
+  })
 
-  // Mount the Vue app to the container inside the shadow DOM
-  const app = createApp(ContentApp)
-  app.mount(contentDiv)
+  // 工具栏图标改的是 storage，各标签页监听变更即可实时同步。
+  const onStorageChanged = (
+    changes: {[key: string]: chrome.storage.StorageChange},
+    areaName: string
+  ) => {
+    if (areaName === 'local' && changes[STORAGE_KEY]) {
+      apply(Boolean(changes[STORAGE_KEY].newValue))
+    }
+  }
+  chrome.storage.onChanged.addListener(onStorageChanged)
 
   return () => {
-    rootDiv.remove()
+    chrome.storage.onChanged.removeListener(onStorageChanged)
+    document.documentElement.classList.remove(DARK_CLASS)
+    styleElement.remove()
   }
-}
-
-async function fetchCSS() {
-  const cssUrl = new URL('./styles.css', import.meta.url)
-  const response = await fetch(cssUrl)
-  const text = await response.text()
-
-  return response.ok ? text : Promise.reject(text)
 }
