@@ -4,6 +4,11 @@
   "description": "为 Cocos 论坛 (forum.cocos.org) 一键切换暗色主题。",
   "version": "1.0.0",
   "license": "MIT",
+  "author": "CosmoLau",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CosmoLau/cocos-forum-dark-theme.git"
+  },
   "type": "module",
   "devDependencies": {
     "@types/chrome": "^0.0.287",
